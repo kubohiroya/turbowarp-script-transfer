@@ -1,3 +1,8 @@
+import type {
+    BrowserHost, ContextMenuMethod, MenuItem, RenderedBlock, ScratchBlocksPort,
+    ScriptTransferContext, StageMenus, StageTransferContext, WorkspacePort
+} from './types.js';
+export type * from './types.js';
 import {exportScript, importScript, parseScript, MAX_BYTES} from './format.js';
 import {createScriptClipboard, scratchblocksText} from './clipboard.js';
 import {exportStage, importStage} from './stage.js';
@@ -5,13 +10,13 @@ export * from './format.js';
 export * from './clipboard.js';
 export * from './stage.js';
 
-const labels = locale => String(locale).startsWith('ja') ? {
+const labels = (locale = 'en') => String(locale).startsWith('ja') ? {
     export: 'スクリプトを書き出し', import: 'スクリプトを読み込み', copy: 'コピー', paste: '貼り付け',
     exportStage: 'ステージを書き出し', importStage: 'ステージを読み込み（追加）', error: '読み込み・書き出しに失敗しました'
 } : {export: 'Export Script', import: 'Import Script', copy: 'Copy', paste: 'Paste',
     exportStage: 'Export Stage', importStage: 'Import Stage (add)', error: 'Transfer failed'};
 
-function download (host, data, filename, type) {
+function download (host: BrowserHost, data: Blob | string, filename: string, type?: string): void {
     const blob = data instanceof host.Blob ? data : new host.Blob([data], {type});
     const url = host.URL.createObjectURL(blob);
     const link = host.document.createElement('a');
@@ -23,13 +28,13 @@ function download (host, data, filename, type) {
     host.setTimeout(() => host.URL.revokeObjectURL(url), 1000);
 }
 
-function pick (host, accept, read, onError) {
+function pick (host: BrowserHost, accept: string, read: (file: File) => Promise<void>, onError: (error: unknown) => void): void {
     const input = host.document.createElement('input');
     input.type = 'file';
     input.accept = accept;
     input.style.display = 'none';
     input.onchange = () => {
-        const file = input.files[0];
+        const file = input.files?.[0];
         input.remove();
         if (file) Promise.resolve().then(() => read(file)).catch(onError);
     };
@@ -38,21 +43,27 @@ function pick (host, accept, read, onError) {
     input.click();
 }
 
-const installations = new WeakMap();
-function installMenus (ScratchBlocks) {
-    if (installations.has(ScratchBlocks)) return installations.get(ScratchBlocks);
-    const contexts = new Map();
-    const originals = [];
-    const wrap = (object, name, isBlock) => {
+type MenuOwner = RenderedBlock | WorkspacePort;
+interface MenuContext {menu(owner: MenuOwner, items: MenuItem[], isBlock: boolean): void}
+interface MenuInstallation {
+    contexts: Map<WorkspacePort, MenuContext>;
+    release(): void;
+}
+const installations = new WeakMap<ScratchBlocksPort, MenuInstallation>();
+function installMenus (ScratchBlocks: ScratchBlocksPort): MenuInstallation {
+    if (installations.has(ScratchBlocks)) return installations.get(ScratchBlocks)!;
+    const contexts = new Map<WorkspacePort, MenuContext>();
+    const originals: (() => void)[] = [];
+    const wrap = (object: {showContextMenu_: ContextMenuMethod}, name: 'showContextMenu_', isBlock: boolean) => {
         const original = object[name];
-        const wrapped = function (...args) {
-            const context = contexts.get(isBlock ? this.workspace : this);
+        const wrapped: ContextMenuMethod = function (this: MenuOwner, ...args: unknown[]) {
+            const context = contexts.get(isBlock ? (this as RenderedBlock).workspace : this as WorkspacePort);
             if (!context) return original.apply(this, args);
             const show = ScratchBlocks.ContextMenu.show;
             const owner = this;
-            ScratchBlocks.ContextMenu.show = function (event, items, ...rest) {
+            ScratchBlocks.ContextMenu.show = function (this: ScratchBlocksPort['ContextMenu'], event: Event, items: MenuItem[], rtl?: boolean) {
                 context.menu(owner, items, isBlock);
-                return show.call(this, event, items, ...rest);
+                return show.call(this, event, items, rtl);
             };
             try { return original.apply(this, args); }
             finally { ScratchBlocks.ContextMenu.show = show; }
@@ -72,14 +83,14 @@ function installMenus (ScratchBlocks) {
 }
 
 export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, locale = 'en',
-    canUse = () => true, onError = () => {}}) {
-    const host = document.defaultView;
+    canUse = () => true, onError = () => {}}: ScriptTransferContext): {dispose(): void} {
+    const host = document.defaultView as unknown as BrowserHost;
     const text = labels(locale);
-    const report = error => { onError(error); host.alert(`${text.error}: ${error.message}`); };
+    const report = (error: unknown) => { onError(error); host.alert(`${text.error}: ${error instanceof Error ? error.message : String(error)}`); };
     const clipboard = createScriptClipboard(host);
     let disposed = false;
-    const run = action => () => { Promise.resolve().then(action).catch(report); };
-    const copy = block => {
+    const run = (action: () => unknown) => () => { Promise.resolve().then(action).catch(report); };
+    const copy = (block: RenderedBlock) => {
         const script = exportScript(vm, vm.editingTarget, block.id);
         return clipboard.copy(script, scratchblocksText(block.getRootBlock()));
     };
@@ -96,7 +107,8 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
         return true;
     };
     const install = installMenus(ScratchBlocks);
-    install.contexts.set(workspace, {menu (block, items, isBlock) {
+    install.contexts.set(workspace, {menu (owner, items, isBlock) {
+        const block = owner as RenderedBlock;
         if (!canUse()) return;
         if (isBlock) {
             if (block.isInFlyout || block.isShadow() || !vm.editingTarget.blocks.getBlock(block.id)) return;
@@ -117,9 +129,9 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
             items.push({_twPlusTransfer: true, text: text.paste, enabled: true, callback: run(paste)});
         }
     }});
-    const onKey = event => {
+    const onKey = (event: KeyboardEvent) => {
         if (disposed || !canUse() || event.altKey || event.shiftKey || !(event.ctrlKey || event.metaKey) || event.repeat) return;
-        if (event.target?.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+        if ((event.target as Element | null)?.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
         if (ScratchBlocks.getMainWorkspace() !== workspace) return;
         const key = (event.key || '').toLowerCase();
         const block = ScratchBlocks.selected;
@@ -144,10 +156,10 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
     }};
 }
 
-export function stageTransferMenu ({vm, locale, document, deserializeBlocks, Zip, onError = () => {}}) {
-    const host = document.defaultView;
+export function stageTransferMenu ({vm, locale, document, deserializeBlocks, Zip, onError = () => {}}: StageTransferContext): StageMenus {
+    const host = document.defaultView as unknown as BrowserHost;
     const text = labels(locale);
-    const report = error => { onError(error); host.alert(`${text.error}: ${error.message}`); };
+    const report = (error: unknown) => { onError(error); host.alert(`${text.error}: ${error instanceof Error ? error.message : String(error)}`); };
     return {
         contextItems: [{label: text.exportStage, onClick: () => {
             exportStage(vm, vm.runtime.getTargetForStage(), {Zip})
@@ -166,7 +178,7 @@ export function stageTransferMenu ({vm, locale, document, deserializeBlocks, Zip
 
 // The GUI calls this after its addons have offered their menu items. Keep the host's script
 // paste when an addon also offers the window-local clipboard under the same label.
-export function finalizeTransferMenu (items) {
+export function finalizeTransferMenu<T extends {text: string; _twPlusTransfer?: boolean}> (items: T[]): T[] {
     const labels = new Set(items.filter(item => item._twPlusTransfer).map(item => item.text));
     return items.filter(item => item._twPlusTransfer || !labels.has(item.text));
 }

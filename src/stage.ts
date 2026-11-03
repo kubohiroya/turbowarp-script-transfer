@@ -1,44 +1,48 @@
+import type {StageFile, StageImportOptions, TargetPort, VariableDescriptor, VMAsset, VMPort} from './types.js';
 import {extensionDependencies} from './extensions.js';
 import {queueTransfer} from './queue.js';
 import {FORMAT, importScriptNow, validateScript} from './format.js';
 const MAX_STAGE_BYTES = 64 * 1024 * 1024;
 
-export async function exportStage (vm, stage, {Zip}) {
+export async function exportStage (vm: VMPort, stage: TargetPort, {Zip}: Pick<StageImportOptions, 'Zip'>): Promise<Blob> {
     const blob = await vm.exportSprite(stage.id);
     const zip = await Zip.loadAsync(await blob.arrayBuffer());
-    const json = JSON.parse(await zip.file('sprite.json').async('string'));
+    const json = JSON.parse(await zip.file('sprite.json')!.async('string'));
     Object.assign(json, extensionDependencies(vm, Object.values(stage.blocks._blocks)));
     zip.file('sprite.json', JSON.stringify(json));
     return zip.generateAsync({type: 'blob', compression: 'DEFLATE'});
 }
 
-export function importStage (vm, buffer, options) {
+export function importStage (vm: VMPort, buffer: ArrayBuffer | Uint8Array, options: StageImportOptions): Promise<void> {
     return queueTransfer(vm, () => importStageNow(vm, buffer, options));
 }
 
-async function importStageNow (vm, buffer, {Zip, deserializeBlocks}) {
+async function importStageNow (vm: VMPort, buffer: ArrayBuffer | Uint8Array, {Zip, deserializeBlocks}: StageImportOptions): Promise<void> {
     if (buffer.byteLength > MAX_STAGE_BYTES) throw new Error('Stage file is too large');
     const zip = await Zip.loadAsync(buffer);
     const header = zip.file('sprite.json');
     if (!header || header._data.uncompressedSize > 8 * 1024 * 1024) throw new Error('Invalid .stage3 file');
-    const stageJSON = JSON.parse(await header.async('string'));
+    const stageJSON = JSON.parse(await header.async('string')) as StageFile;
     if (stageJSON.isStage !== true || !stageJSON.blocks ||
         !Array.isArray(stageJSON.costumes) || !Array.isArray(stageJSON.sounds)) throw new Error('Invalid stage');
     const stage = vm.runtime.getTargetForStage();
-    const variables = [];
-    for (const [key, type] of [['variables', ''], ['lists', 'list'], ['broadcasts', 'broadcast_msg']]) {
-        for (const [id, value] of Object.entries(stageJSON[key] || {})) {
-            variables.push({id, name: type === 'broadcast_msg' ? value : value[0], type,
-                scope: 'global', value: type === 'broadcast_msg' ? value : value[1]});
-        }
+    const variables: VariableDescriptor[] = [];
+    for (const [id, [name, value]] of Object.entries(stageJSON.variables || {})) {
+        variables.push({id, name, type: '', scope: 'global', value});
+    }
+    for (const [id, [name, value]] of Object.entries(stageJSON.lists || {})) {
+        variables.push({id, name, type: 'list', scope: 'global', value});
+    }
+    for (const [id, name] of Object.entries(stageJSON.broadcasts || {})) {
+        variables.push({id, name, type: 'broadcast_msg', scope: 'global', value: name});
     }
     const script = {format: FORMAT, version: 1, variables,
         blocks: Object.values(deserializeBlocks(stageJSON.blocks)), extensionURLs: stageJSON.extensionURLs || {},
         extensionIDs: stageJSON.extensionIDs || stageJSON.extensions || []};
     validateScript(script);
     let expanded = 0;
-    const assets = [];
-    for (const [kind, items] of [['costume', stageJSON.costumes], ['sound', stageJSON.sounds]]) {
+    const assets: {kind: 'costume' | 'sound'; item: VMAsset}[] = [];
+    for (const [kind, items] of [['costume', stageJSON.costumes], ['sound', stageJSON.sounds]] as const) {
         for (const item of items) {
             const file = zip.file(item.md5ext || `${item.assetId}.${item.dataFormat}`);
             if (!file) throw new Error(`Missing stage asset: ${item.name}`);
@@ -53,8 +57,8 @@ async function importStageNow (vm, buffer, {Zip, deserializeBlocks}) {
         }
     }
     // Reserve asset names before importing the scripts that refer to them.
-    const renamedAssets = {costume: new Map(), sound: new Map()};
-    for (const kind of ['costume', 'sound']) {
+    const renamedAssets = {costume: new Map<string, string>(), sound: new Map<string, string>()};
+    for (const kind of ['costume', 'sound'] as const) {
         const names = new Set((kind === 'costume' ? stage.getCostumes() : stage.getSounds()).map(item => item.name));
         for (const entry of assets.filter(entry => entry.kind === kind)) {
             const original = entry.item.name;
@@ -67,9 +71,9 @@ async function importStageNow (vm, buffer, {Zip, deserializeBlocks}) {
         }
     }
     for (const block of script.blocks) {
-        for (const [field, kind] of [['BACKDROP', 'costume'], ['SOUND_MENU', 'sound']]) {
+        for (const [field, kind] of [['BACKDROP', 'costume'], ['SOUND_MENU', 'sound']] as const) {
             const reference = block.fields[field];
-            if (reference && renamedAssets[kind].has(reference.value)) reference.value = renamedAssets[kind].get(reference.value);
+            if (reference && renamedAssets[kind].has(String(reference.value))) reference.value = renamedAssets[kind].get(String(reference.value))!;
         }
     }
     const oldBlocks = new Set(Object.keys(stage.blocks._blocks));
@@ -78,7 +82,7 @@ async function importStageNow (vm, buffer, {Zip, deserializeBlocks}) {
     const soundCount = stage.getSounds().length;
     const currentCostume = stage.currentCostume;
     try {
-        await importScriptNow(vm, stage, script);
+        await importScriptNow(vm, stage, validateScript(script));
         for (const {kind, item} of assets) {
             if (kind === 'costume') await vm.addCostume(item.md5, item, stage.id);
             else await vm.addSound(item, stage.id);

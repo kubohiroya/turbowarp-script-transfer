@@ -1,11 +1,13 @@
+import type {ClipboardHost, RenderedBlock, ScriptFile} from './types.js';
 import {parseScript, validateScript} from './format.js';
 export const CLIPBOARD_MIME = 'web application/x.turbowarp.blocks3+json';
 const CHANNEL = 'tw-plus-script-clipboard-v1';
 
-export function createScriptClipboard (host = globalThis) {
-    let current = null;
-    let channel;
-    const accept = value => {
+export function createScriptClipboard (host: ClipboardHost = globalThis as unknown as ClipboardHost) {
+    let current: {time: number; script: ScriptFile} | null = null;
+    let channel: BroadcastChannel | undefined;
+    const accept = (input: unknown) => {
+        const value = input as {time: number; script: ScriptFile} | null;
         try {
             if (value && Number.isFinite(value.time) && (!current || value.time >= current.time)) {
                 validateScript(value.script);
@@ -14,22 +16,22 @@ export function createScriptClipboard (host = globalThis) {
         } catch { /* Ignore unrelated or invalid same-origin messages. */ }
     };
     const readLocal = () => {
-        try { accept(JSON.parse(host.localStorage.getItem(CHANNEL))); } catch { /* Storage may be disabled. */ }
+        try { accept(JSON.parse(host.localStorage.getItem(CHANNEL) || 'null')); } catch { /* Storage may be disabled. */ }
         return current?.script || null;
     };
     try {
         channel = new host.BroadcastChannel(CHANNEL);
         channel.onmessage = event => {
-            if (event.data?.request) { if (current) channel.postMessage(current); }
+            if (event.data?.request) { if (current) channel?.postMessage(current); }
             else accept(event.data);
         };
         channel.postMessage({request: true});
     } catch { /* Storage still connects windows when BroadcastChannel is unavailable. */ }
     readLocal();
-    const onStorage = event => { if (event.key === CHANNEL) readLocal(); };
+    const onStorage = (event: StorageEvent) => { if (event.key === CHANNEL) readLocal(); };
     host.addEventListener?.('storage', onStorage);
     return {
-        async copy (script, text) {
+        async copy (script: ScriptFile, text: string) {
             validateScript(script);
             readLocal();
             current = {time: Math.max(Date.now(), (current?.time || 0) + 1), script};
@@ -51,7 +53,7 @@ export function createScriptClipboard (host = globalThis) {
             const local = readLocal();
             if (local) {
                 try {
-                    const permission = await host.navigator.permissions.query({name: 'clipboard-read'});
+                    const permission = await host.navigator.permissions.query({name: 'clipboard-read' as PermissionName});
                     if (permission.state !== 'granted') return local;
                 } catch { return local; }
             }
@@ -60,7 +62,7 @@ export function createScriptClipboard (host = globalThis) {
                     if (item.types.includes(CLIPBOARD_MIME)) {
                         const script = parseScript(await (await item.getType(CLIPBOARD_MIME)).text());
                         const local = readLocal();
-                        if (local && Number.isFinite(script.clipboardTime) && current.time > script.clipboardTime) return local;
+                        if (local && Number.isFinite(script.clipboardTime) && current!.time > script.clipboardTime!) return local;
                         delete script.clipboardTime;
                         return script;
                     }
@@ -83,16 +85,17 @@ export function createScriptClipboard (host = globalThis) {
 
 // Use the visible labels, inputs and nesting of the supplied ScratchBlocks instance. This also
 // handles extension blocks and localized labels without importing a second block-definition table.
-export function scratchblocksText (root) {
-    const escape = text => String(text).replace(/([\\[\]()<>])/g, '\\$1');
-    const chain = (block, depth = 0) => {
+export function scratchblocksText (root: RenderedBlock): string {
+    const escape = (text: string) => String(text).replace(/([\\[\]()<>])/g, '\\$1');
+    const chain = (initial: RenderedBlock, depth = 0): string => {
+        let block: RenderedBlock | null = initial;
         if (depth > 100) throw new Error('Script nesting is too deep');
-        const lines = [];
-        const seen = new Set();
+        const lines: string[] = [];
+        const seen = new Set<string>();
         while (block && !seen.has(block.id)) {
             seen.add(block.id);
-            let parts = [];
-            const blockLines = [];
+            let parts: string[] = [];
+            const blockLines: string[] = [];
             let statements = 0;
             const flush = () => {
                 if (parts.length) blockLines.push(parts.join(' '));
@@ -122,7 +125,7 @@ export function scratchblocksText (root) {
             if (block.type === 'event_whenflagclicked') blockLines[0] = 'when green flag clicked';
             if (statements) blockLines.push('end');
             lines.push(...blockLines);
-            block = block.getNextBlock?.();
+            block = block.getNextBlock?.() ?? null;
         }
         return lines.join('\n');
     };

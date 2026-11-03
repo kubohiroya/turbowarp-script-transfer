@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createScriptClipboard, CLIPBOARD_MIME, scratchblocksText} from '../index.js';
+import {createScriptClipboard, CLIPBOARD_MIME, scratchblocksText} from '../dist/index.js';
 const script = {format: 'turbowarp-script', version: 1, blocks: [], variables: [], extensionURLs: {}};
 const host = (storage, overrides = {}) => ({
     localStorage: {getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value)},
@@ -63,7 +63,7 @@ test('readable text includes nested C blocks and escaped literal text', () => {
 
 
 test('the host paste replaces a duplicate addon item while unrelated commands retain their order', async () => {
-    const {finalizeTransferMenu} = await import('../index.js');
+    const {finalizeTransferMenu} = await import('../dist/index.js');
     const host = {text: 'Paste', _twPlusTransfer: true};
     const other = {text: 'Copy All'};
     assert.deepEqual(finalizeTransferMenu([host, {text: 'Paste', enabled: false}, other]), [host, other]);

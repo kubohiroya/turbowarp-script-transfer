@@ -1,22 +1,24 @@
 # TurboWarp Script Transfer
 
-`@kubohiroya/turbowarp-script-transfer` は、スクリプト単位のファイル転送・ウィンドウ間のコピーと貼り付け・ステージ単位のファイル転送を実装するパッケージです。GUI内部のモジュールには依存せず、VM・ScratchBlocks・ワークスペース・Document・JSZip・VMの `deserializeBlocks` を呼び出し側から受け取ります。
+English | [日本語](README.ja.md)
 
-関連仕様: [Editor #93](https://github.com/kubohiroya/turbowarp-plus-editor/issues/93)、[#94](https://github.com/kubohiroya/turbowarp-plus-editor/issues/94)、[#95](https://github.com/kubohiroya/turbowarp-plus-editor/issues/95)。タスク管理はこれらのIssueで行います。
+`@kubohiroya/turbowarp-script-transfer` provides script file transfer, copying and pasting between editor windows, and stage file transfer. It does not import GUI internals: the host supplies its VM, ScratchBlocks, workspace, Document, JSZip, and the VM's `deserializeBlocks` function.
+
+Specifications and task tracking: [Editor #93](https://github.com/kubohiroya/turbowarp-plus-editor/issues/93), [#94](https://github.com/kubohiroya/turbowarp-plus-editor/issues/94), and [#95](https://github.com/kubohiroya/turbowarp-plus-editor/issues/95).
 
 ## API
 
-- `attachScriptTransfer({vm, ScratchBlocks, workspace, document, locale, canUse, onError})`: スクリプト・ワークスペースの右クリックメニューと Ctrl/Cmd+C・V を接続します。戻り値の `dispose()` で接続を解除します。
-- `stageTransferMenu({vm, document, locale, Zip, deserializeBlocks, onError})`: ステージの `contextItems` と背景選択の `backdropItems` を返します。
-- `finalizeTransferMenu(items)`: GUIのアドオンがメニューを作った後、ホストの貼り付けと同名の項目を統一します。
-- `exportScript(vm, target, rootId)` / `importScript(vm, target, payload, options)` / `parseScript(text)`: 共通の書式・依存収集・読み込みです。
-- `exportStage(vm, stage, {Zip})` / `importStage(vm, buffer, {Zip, deserializeBlocks})`: ステージのZIPを扱います。
+- `attachScriptTransfer({vm, ScratchBlocks, workspace, document, locale, canUse, onError})`: attaches script/workspace context menus and Ctrl/Cmd+C/V. Call the returned `dispose()` to detach them.
+- `stageTransferMenu({vm, document, locale, Zip, deserializeBlocks, onError})`: returns stage `contextItems` and backdrop-picker `backdropItems`.
+- `finalizeTransferMenu(items)`: resolves duplicate paste commands after GUI addons have added their menu items.
+- `exportScript(vm, target, rootId)` / `importScript(vm, target, payload, options)` / `parseScript(text)`: shared format, dependency collection, and import operations.
+- `exportStage(vm, stage, {Zip})` / `importStage(vm, buffer, {Zip, deserializeBlocks})`: stage ZIP operations.
 
-ホストは起動時に `twPlusScriptTransfer=1` が指定された場合だけ接続します。パッケージ自体は機能を自動的に接続しません。
+The Editor host attaches these functions only when `twPlusScriptTransfer=1` is present at startup. The package does not attach itself automatically.
 
 ## `.blocks3` v1
 
-UTF-8 JSONです。
+A UTF-8 JSON file:
 
 ```json
 {
@@ -29,32 +31,44 @@ UTF-8 JSONです。
 }
 ```
 
-`blocks` はバックパックのstandaloneブロックJSONと同じVMブロックの配列です。選択したブロックを含むスタック全体と、そこから呼ぶブロック定義を再帰的に含みます。`variables` の各項目は `{id, name, type, scope, value}` で、`type` は `""` / `"list"` / `"broadcast_msg"`、`scope` は `"local"` / `"global"` です。メッセージはglobalとして扱います。
+`blocks` is an array of VM block objects in the same format as standalone backpack blocks. It includes the entire stack containing the selected block and recursively includes any custom block definitions that stack calls. Each `variables` entry is `{id, name, type, scope, value}`. `type` is `""`, `"list"`, or `"broadcast_msg"`; `scope` is `"local"` or `"global"`. Broadcast messages are global.
 
-`extensionIDs` は依存先から順に並べたIDの配列です。初期v1ファイルとの互換性のため省略時はVMがブロックのopcodeから判断します。`extensionURLs` はIDからURLへの対応です。Plusの埋め込み拡張は実際のコードをdata URLとして含み、ネットワーク不要で持ち出せます。承認・信頼情報は転送せず、読み込み先でVMの既存の拡張セキュリティ確認を通します。Plus固有の配布設定は引き継がず、取り込んだ拡張は通常のVM拡張URLとして保存されます。
+`extensionIDs` lists extensions in dependency-first order. It is optional for compatibility with early v1 files; when omitted, the VM infers extension IDs from block opcodes. `extensionURLs` maps IDs to URLs. Embedded Plus extensions carry their actual code as data URLs so they can be transferred without network access. Approval and trust records are never transferred: imports use the destination VM's existing extension security checks. Plus-specific distribution settings are not retained; imported extensions are saved as ordinary VM extension URLs.
 
-同じ名前・種類・スコープの変数やリストは既存のものへ対応付け、読み込み先の値を保持します。新規のものには新しいIDを発行し、初期値をコピーします。ステージへの読み込みではローカル変数をglobalへ変換します。ローカル名が既存global名と競合するときは新規ローカル名へ番号を付けます。cloud変数は通常変数として読み込みます。同名のブロック定義は読み込む側の定義名と呼び出しをまとめて変更します。
+Variables and lists with matching names, types, and scopes reuse the destination's existing data and keep its current values. New entries receive fresh IDs and copies of their initial values. Importing into the stage converts local variables to globals. When a new local name conflicts with an existing global name, the local is given a numbered name. Cloud variables are imported as ordinary variables. Custom block definitions with conflicting names are renamed together with their imported calls.
 
-ファイル入力は8 MiB、ブロックは10,000個までです。不明なバージョン、不正なブロック参照、循環、欠落した変数依存を拒否します。VMの `shareBlocksToTarget` がブロックIDを再発行します。
+Script input files are limited to 8 MiB and 10,000 blocks. Unknown format versions, invalid block references, cycles, and missing variable dependencies are rejected. The VM's `shareBlocksToTarget` regenerates block IDs.
 
-## クリップボード
+## Clipboard
 
-同じオリジンではBroadcastChannelとlocalStorageを併用します。後から開いたウィンドウも最後のコピーを受け取れます。localStorageには最後のスクリプトが残り、次のコピーまたはサイトデータの消去で更新・削除されます。
+Same-origin windows use both BroadcastChannel and localStorage. A window opened after a copy can still retrieve the last script. The last script remains in localStorage until another copy replaces it or the site's stored data is cleared.
 
-対応ブラウザのAsync Clipboard APIへ `web application/x.turbowarp.blocks3+json` と `text/plain` のscratchblocks記法を一緒に書きます。OSの許可がない場合やcustom MIME非対応の場合にも、同じオリジンの転送は使えます。custom MIME非対応時はテキストだけを書ける場合があります。別オリジンのJSON読み取りにはcustom MIMEの対応と読み取り許可が必要です。
+On supported browsers, the Async Clipboard API writes both `web application/x.turbowarp.blocks3+json` and readable scratchblocks `text/plain`. Same-origin transfer remains available when OS clipboard access is denied or custom MIME types are unsupported. Browsers without custom MIME support may still receive plain text. Reading JSON across origins requires custom MIME support and clipboard read permission.
 
-テキストは表示中のブロックのラベル、ドロップダウン、数値・文字列入力とCブロックの入れ子から生成します。拡張機能の独自アイコンや独自の構文の完全なテキスト再現は保証しません。入力欄・モーダル内のCtrl/Cmd+C・Vは横取りしません。
+Text is generated from the displayed block labels, dropdowns, numeric/string inputs, and nested C blocks. Complete text reproduction of extension-specific icons and syntax is not guaranteed. Ctrl/Cmd+C/V in input fields and dialogs is left to the native controls.
 
 ## `.stage3`
 
-`.sprite3` と同じ `sprite.json` とアセットのZIPで、`isStage: true` です。拡張情報は上記と同じ `extensionIDs` / `extensionURLs` を使います。
+A ZIP with `sprite.json` and its assets, using the same structure as `.sprite3` with `isStage: true`. Extension metadata uses the same `extensionIDs` and `extensionURLs` fields described above.
 
-読み込みは追加方式です。既存の背景・音・スクリプト・変数を保持し、現在の背景やテンポなどの設定も維持します。変数・リスト・メッセージ・ブロック定義の規則はスクリプトと共通です。同名の背景・音には番号を付け、ブロックの背景・音メニューのリテラル名を更新します。計算式で生成するアセット名や番号による指定は自動変換しません。ファイルと展開アセットの合計の上限は各64 MiBです。
+Import adds contents to the current stage. Existing backdrops, sounds, scripts, and variables are retained, as are settings such as the current backdrop and tempo. Variables, lists, messages, and custom block definitions follow the same rules as script import. Conflicting backdrop and sound names receive numbered names, and literal references in backdrop/sound menus are updated. Names computed by expressions and numeric asset references are not converted automatically. Both the input file and the total expanded assets are limited to 64 MiB each.
 
-アセットをすべて検査した後に追加し、追加途中の失敗時は新規のブロック・変数・背景・音を取り消します。承認して既に読み込まれた拡張そのものはアンロードしません。1つのVMへの転送は直列化します。
+All assets are checked before installation. If installation fails partway through, newly added blocks, variables, backdrops, and sounds are removed. Extensions that were approved and already loaded are not unloaded. Transfers into a VM are serialized.
 
-## 検証と切り戻し
+## TypeScript and development
 
-`npm test` は依存不要のクリップボード・拡張依存テストです。実VM・GUI・アセットデコードの検証はEditorリポジトリの `test/script-transfer` と `script-transfer.spec.cts` で行います。
+The implementation lives in `src/*.ts` and compiles with strict TypeScript checks. The package exports compiled ESM from `dist/index.js` and public type declarations from `dist/index.d.ts`, including the script file format and the host VM, target, workspace, and menu interfaces. GUI modules remain host-supplied ports rather than package dependencies.
 
-切り戻しは起動URLの `twPlusScriptTransfer=1` を外して再読込します。口を渡さなければGUIは元の動作を保ちます。保存済みプロジェクトは通常のSB3です。
+```sh
+npm ci
+npm run typecheck
+npm test
+```
+
+`npm test` builds the package before running its tests. The `prepare` script builds Git dependencies automatically. To generate the compiled output explicitly, run `npm run build`.
+
+## Verification and rollback
+
+`npm test` runs the clipboard and extension-dependency tests without external dependencies. Real VM, GUI, and asset-decoding checks live in the Editor repository's `test/script-transfer` and `script-transfer.spec.cts` suites.
+
+To roll back, remove `twPlusScriptTransfer=1` from the startup URL and reload. Without the integration hooks, the GUI retains its original behavior. Projects containing imported content remain ordinary SB3 files.

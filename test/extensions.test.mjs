@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {extensionDependencies} from '../extensions.js';
+import {extensionDependencies} from '../dist/extensions.js';
 
 test('Plus embedded code and transitive dependencies are carried in dependency order', () => {
     const project = {turboWarpPlus: {extensions: [
