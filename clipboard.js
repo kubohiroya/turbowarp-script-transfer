@@ -91,31 +91,37 @@ export function scratchblocksText (root) {
         const seen = new Set();
         while (block && !seen.has(block.id)) {
             seen.add(block.id);
-            const parts = [];
-            const bodies = [];
+            let parts = [];
+            const blockLines = [];
+            let statements = 0;
+            const flush = () => {
+                if (parts.length) blockLines.push(parts.join(' '));
+                parts = [];
+            };
             for (const input of block.inputList || []) {
                 for (const field of input.fieldRow || []) {
+                    // FieldImage alt text includes rendering-only icons such as the repeat arrow.
+                    if (typeof field.src_ === 'string') continue;
                     const text = field.getText?.();
                     if (text) parts.push(typeof field.getOptions === 'function' ? `[${escape(text)} v]` : escape(text));
                 }
                 const child = input.connection?.targetBlock();
-                if (child) {
-                    if (input.type === 3) bodies.push(chain(child, depth + 1));
-                    else {
-                        const text = chain(child, depth + 1);
-                        parts.push(child.isShadow?.() ? (/^math_/.test(child.type || '') ? `(${text})` : `[${text}]`) :
-                            child.outputShape_ === 1 ? `<${text}>` : `(${text})`);
-                    }
+                if (input.type === 3) {
+                    statements++;
+                    flush();
+                    if (child) blockLines.push(chain(child, depth + 1).split('\n').map(line => `  ${line}`).join('\n'));
+                } else if (child) {
+                    const text = chain(child, depth + 1);
+                    parts.push(child.isShadow?.() ? (/^math_/.test(child.type || '') ? `(${text})` : `[${text}]`) :
+                        child.outputShape_ === 1 ? `<${text}>` : `(${text})`);
+                } else if (input.type === 1 && input.connection) {
+                    parts.push(input.connection.check_?.includes('Boolean') ? '<>' : '()');
                 }
             }
-            lines.push(block.type === 'event_whenflagclicked' ? 'when green flag clicked' : parts.join(' '));
-            if (bodies.length) {
-                for (let i = 0; i < bodies.length; i++) {
-                    if (i) lines.push('else');
-                    lines.push(bodies[i].split('\n').map(line => `  ${line}`).join('\n'));
-                }
-                lines.push('end');
-            }
+            flush();
+            if (block.type === 'event_whenflagclicked') blockLines[0] = 'when green flag clicked';
+            if (statements) blockLines.push('end');
+            lines.push(...blockLines);
             block = block.getNextBlock?.();
         }
         return lines.join('\n');

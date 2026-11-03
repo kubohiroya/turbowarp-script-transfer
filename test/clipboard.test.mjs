@@ -84,3 +84,29 @@ test('same-origin paste does not request OS read permission when it would prompt
     assert.equal(reads, 0);
     clipboard.dispose();
 });
+
+
+test('if/else labels stay between their statement bodies', () => {
+    const field = text => ({getText: () => text});
+    const statement = text => ({id: text, inputList: [{fieldRow: [field(text)]}]});
+    const condition = {id: 'condition', outputShape_: 1, inputList: [{fieldRow: [field('true')]}]};
+    const root = {id: 'conditional', type: 'control_if_else', inputList: [
+        {type: 1, fieldRow: [field('if')], connection: {targetBlock: () => condition}},
+        {fieldRow: [field('then')]},
+        {type: 3, fieldRow: [], connection: {targetBlock: () => statement('say yes')}},
+        {fieldRow: [field('else')]},
+        {type: 3, fieldRow: [], connection: {targetBlock: () => statement('say no')}}
+    ]};
+    assert.equal(scratchblocksText(root), 'if <true> then\n  say yes\nelse\n  say no\nend');
+});
+
+test('empty C blocks retain end and omit renderer icon alt text', () => {
+    const number = {id: 'number', type: 'math_whole_number', isShadow: () => true,
+        inputList: [{fieldRow: [{getText: () => '10'}]}]};
+    const repeat = {id: 'repeat', type: 'control_repeat', inputList: [
+        {type: 1, fieldRow: [{getText: () => 'repeat'}], connection: {targetBlock: () => number}},
+        {type: 3, fieldRow: [], connection: {targetBlock: () => null}},
+        {fieldRow: [{getText: () => '*', src_: 'repeat.svg'}]}
+    ]};
+    assert.equal(scratchblocksText(repeat), 'repeat (10)\nend');
+});
