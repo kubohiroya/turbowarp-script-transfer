@@ -3,17 +3,32 @@
   "version": "0.1.0",
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "exports": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
-    "*.js",
+    "dist",
+    "src",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "README.ja.md"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kubohiroya/turbowarp-script-transfer.git"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "prepare": "npm run build"
+  },
+  "types": "./dist/index.d.ts",
+  "devDependencies": {
+    "typescript": "6.0.3"
   }
 }
