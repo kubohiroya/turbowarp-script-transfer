@@ -102,6 +102,11 @@ export interface VMPort {
     exportStandaloneBlocks(blocks: VMBlock[]): VMBlock[] | {blocks: VMBlock[]; extensionURLs: Record<string, string>};
     _loadExtensions(ids: Set<string>, urls: Map<string, string>): Promise<unknown>;
     shareBlocksToTarget(blocks: {blocks: VMBlock[]; extensionURLs: Record<string, string>}, targetId: string): Promise<unknown>;
+    shareBlocksToTargetWithReceipt?(blocks: {blocks: VMBlock[]; extensionURLs: Record<string, string>},
+        targetId: string, hooks: {
+            prepare(blocks: VMBlock[]): boolean;
+            onCommitted(receipt: BlockImportReceipt): void;
+        }): Promise<BlockImportReceipt | null>;
     exportSprite(targetId: string): Promise<Blob>;
     toJSON(targetId?: string): string;
     saveProjectSb3DontZip(): Record<string, Uint8Array>;
@@ -109,6 +114,15 @@ export interface VMPort {
     addSound(sound: VMAsset, targetId: string): Promise<unknown>;
     emitTargetsUpdate(): void;
     refreshWorkspace(): void;
+}
+export interface BlockImportReceipt {
+    readonly blockIds: readonly string[];
+    readonly rootBlockIds: readonly string[];
+}
+export interface ReceiptImportOptions extends ScriptImportOptions {
+    canCommit?: () => boolean;
+    beforeCommit?: () => void;
+    onCommitted?: (receipt: BlockImportReceipt) => void;
 }
 export interface ScriptImportOptions {
     position?: {x: number; y: number};
