@@ -1,4 +1,4 @@
-import type {BlockField, JSONValue, ScriptFile, ScriptImportOptions, TargetPort, VariableType, VMBlock, VMPort, VMVariable} from './types.js';
+import type {BlockField, JSONValue, BlockImportReceipt, ReceiptImportOptions, ScriptFile, ScriptImportOptions, TargetPort, VariableType, VMBlock, VMPort, VMVariable} from './types.js';
 import {extensionDependencies} from './extensions.js';
 import {queueTransfer} from './queue.js';
 export const FORMAT = 'turbowarp-script';
@@ -145,15 +145,14 @@ export function importScript (vm: VMPort, target: TargetPort, input: unknown, op
     return queueTransfer(vm, () => importScriptNow(vm, target, script, options));
 }
 
-export async function importScriptNow (vm: VMPort, target: TargetPort, input: ScriptFile, {position, uid = () => globalThis.crypto.randomUUID()}: ScriptImportOptions = {}): Promise<ScriptFile> {
-    if (vm.runtime.getTargetById(target.id) !== target) throw new Error('The destination no longer exists');
-    const payload = clone(validateScript(input));
+function prepareImport (vm: VMPort, target: TargetPort, blocks: VMBlock[], variables: ScriptFile['variables'],
+    {position, uid = () => globalThis.crypto.randomUUID()}: ScriptImportOptions) {
     const stage = vm.runtime.getTargetForStage();
     const created: (VMVariable & {owner: TargetPort})[] = [];
     const replacements = new Map<string, VMVariable>();
     // Reserve against both scopes, including IDs belonging to unrelated variables.
     const occupiedIds = new Set(vm.runtime.targets.flatMap(t => Object.keys(t.variables)));
-    for (const variable of payload.variables) {
+    for (const variable of variables) {
         const owner = variable.scope === 'global' || target.isStage ? stage : target;
         let found = Object.values(owner.variables).find(v => v.name === variable.name && v.type === variable.type);
         if (!found) found = created.find(v => v.owner === owner && v.name === variable.name && v.type === variable.type);
@@ -170,7 +169,7 @@ export async function importScriptNow (vm: VMPort, target: TargetPort, input: Sc
         }
         replacements.set(variable.id, found);
     }
-    for (const block of payload.blocks) {
+    for (const block of blocks) {
         for (const key of Object.keys(fields)) {
             const field = block.fields[key];
             if (field) {
@@ -184,28 +183,72 @@ export async function importScriptNow (vm: VMPort, target: TargetPort, input: Sc
     const codes = new Set(Object.values(target.blocks._blocks).filter(b => b.opcode === 'procedures_prototype')
         .map(b => b.mutation?.proccode).filter((code): code is string => typeof code === 'string'));
     const renamed = new Map<string, string>();
-    for (const block of payload.blocks) {
+    for (const block of blocks) {
         if (block.opcode === 'procedures_prototype') {
             const code = block.mutation!.proccode!;
             renamed.set(code, unused(code, codes));
         }
     }
-    for (const block of payload.blocks) {
+    for (const block of blocks) {
         if (block.mutation && renamed.has(block.mutation!.proccode!)) block.mutation!.proccode! = renamed.get(block.mutation!.proccode!)!;
         if (position && block.topLevel) { block.x = position.x; block.y = position.y; position = {...position, y: position.y + 120}; }
     }
-    // The VM regenerates block IDs and applies its extension security checks before installing.
+    return created;
+}
+
+function installVariables (created: ReturnType<typeof prepareImport>) {
+    for (const variable of created) {
+        variable.owner.createVariable(variable.id, variable.name, variable.type, false);
+        variable.owner.variables[variable.id].value = clone(variable.value);
+    }
+}
+
+async function loadScriptExtensions (vm: VMPort, payload: ScriptFile) {
     if (payload.extensionIDs?.length) {
         for (const id of payload.extensionIDs) await vm._loadExtensions(new Set([id]), new Map(Object.entries(payload.extensionURLs)));
     }
-    if (vm.runtime.getTargetById(target.id) !== target) throw new Error('The destination no longer exists');
+}
+
+export async function importScriptNow (vm: VMPort, target: TargetPort, input: ScriptFile,
+    options: ScriptImportOptions = {}): Promise<ScriptFile> {
+    const current = () => vm.runtime.getTargetById(target.id) === target;
+    if (!current()) throw new Error('The destination no longer exists');
+    const payload = clone(validateScript(input));
+    await loadScriptExtensions(vm, payload);
+    if (!current()) throw new Error('The destination no longer exists');
+    const created = prepareImport(vm, target, payload.blocks, payload.variables, options);
     await vm.shareBlocksToTarget({blocks: payload.blocks, extensionURLs: payload.extensionURLs}, target.id);
-    if (vm.runtime.getTargetById(target.id) !== target) throw new Error('The destination no longer exists');
-    for (const variable of created) {
-        variable.owner.createVariable(variable.id, variable.name, variable.type, false);
-        variable.owner.variables[variable.id].value = variable.value;
-    }
+    if (!current()) throw new Error('The destination no longer exists');
+    installVariables(created);
     vm.runtime.emitProjectChanged();
     vm.refreshWorkspace();
     return payload;
+}
+
+// The VM owns ID generation and runs both hooks at its synchronous commit point.
+export function importScriptWithReceipt (vm: VMPort, target: TargetPort, input: unknown,
+    options: ReceiptImportOptions = {}): Promise<BlockImportReceipt | null> {
+    const payload = clone(validateScript(input));
+    const stage = vm.runtime.getTargetForStage();
+    const current = () => vm.runtime.getTargetById(target.id) === target && vm.runtime.getTargetForStage() === stage;
+    return queueTransfer(vm, async () => {
+        if (!current() || options.canCommit?.() === false) return null;
+        if (!vm.shareBlocksToTargetWithReceipt) throw new Error('The VM does not support script import receipts');
+        await loadScriptExtensions(vm, payload);
+        let created: ReturnType<typeof prepareImport>;
+        return vm.shareBlocksToTargetWithReceipt({blocks: payload.blocks, extensionURLs: payload.extensionURLs}, target.id, {
+            prepare(blocks) {
+                if (!current() || options.canCommit?.() === false) return false;
+                options.beforeCommit?.();
+                if (!current() || options.canCommit?.() === false) return false;
+                created = prepareImport(vm, target, blocks, payload.variables, options);
+                return true;
+            },
+            onCommitted(receipt) {
+                installVariables(created);
+                options.onCommitted?.(receipt);
+                if (vm.editingTarget === target) vm.refreshWorkspace();
+            }
+        });
+    });
 }
