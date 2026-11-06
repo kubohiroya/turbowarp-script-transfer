@@ -3,12 +3,14 @@ import type {
     ScriptTransferContext, StageMenus, StageTransferContext, WorkspacePort
 } from './types.js';
 export type * from './types.js';
-import {exportScript, importScript, parseScript, MAX_BYTES} from './format.js';
+import {exportScript, importScript, importScriptWithReceipt, parseScript, MAX_BYTES} from './format.js';
 import {createScriptClipboard, scratchblocksText} from './clipboard.js';
+import {installScriptDrag} from './script-drag.js';
 import {exportStage, importStage} from './stage.js';
 export * from './format.js';
 export * from './clipboard.js';
 export * from './stage.js';
+export * from './project-json-transfer.js';
 
 const labels = (locale = 'en') => String(locale).startsWith('ja') ? {
     export: 'スクリプトを書き出し', import: 'スクリプトを読み込み', copy: 'コピー', paste: '貼り付け',
@@ -83,16 +85,17 @@ function installMenus (ScratchBlocks: ScratchBlocksPort): MenuInstallation {
 }
 
 export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, locale = 'en',
-    canUse = () => true, onError = () => {}}: ScriptTransferContext): {dispose(): void} {
+    canUse = () => true, projectTransfer, onError = () => {}}: ScriptTransferContext): {dispose(): void} {
     const host = document.defaultView as unknown as BrowserHost;
     const text = labels(locale);
     const report = (error: unknown) => { onError(error); host.alert(`${text.error}: ${error instanceof Error ? error.message : String(error)}`); };
-    const clipboard = createScriptClipboard(host);
+    const clipboard = projectTransfer ? null : createScriptClipboard(host);
     let disposed = false;
     const run = (action: () => unknown) => () => { Promise.resolve().then(action).catch(report); };
     const copy = (block: RenderedBlock) => {
         const script = exportScript(vm, vm.editingTarget, block.id);
-        return clipboard.copy(script, scratchblocksText(block.getRootBlock()));
+        const plain = scratchblocksText(block.getRootBlock());
+        return projectTransfer ? projectTransfer.copy(JSON.stringify(script), plain) : clipboard!.copy(script, plain);
     };
     const position = () => {
         const metrics = workspace.getMetrics();
@@ -100,12 +103,19 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
     };
     const paste = async () => {
         const target = vm.editingTarget;
-        const script = await clipboard.read();
+        const script = projectTransfer ? await projectTransfer.read().then(raw => raw === null ? null : parseScript(raw)) :
+            await clipboard!.read();
         if (disposed || target !== vm.editingTarget || !canUse()) return true;
         if (!script) return false;
-        await importScript(vm, target, script, {position: position()});
+        if (projectTransfer) await receive(target, script);
+        else await importScript(vm, target, script, {position: position()});
         return true;
     };
+    const receive = (target: ScriptTransferContext['vm']['editingTarget'], script: ReturnType<typeof parseScript>) =>
+        importScriptWithReceipt(vm, target, script, {position: position(),
+            canCommit: () => !disposed && target === vm.editingTarget && canUse()});
+    const detachDrag = projectTransfer && installScriptDrag({vm, workspace, ScratchBlocks, document, locale,
+        canUse, projectTransfer}, receive, report);
     const install = installMenus(ScratchBlocks);
     install.contexts.set(workspace, {menu (owner, items, isBlock) {
         const block = owner as RenderedBlock;
@@ -150,7 +160,8 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
     return {dispose () {
         disposed = true;
         document.removeEventListener('keydown', onKey, true);
-        clipboard.dispose();
+        clipboard?.dispose();
+        detachDrag?.();
         install.contexts.delete(workspace);
         install.release();
     }};
