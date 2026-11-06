@@ -1,3 +1,5 @@
+import type {ProjectJSONTransfer} from './project-json-transfer.js';
+
 export type JSONValue = string | number | boolean | null | JSONValue[] | {[key: string]: JSONValue};
 export type VariableType = '' | 'list' | 'broadcast_msg';
 export interface BlockField {
@@ -156,6 +158,7 @@ export interface StageFile {
 }
 export interface WorkspacePort {
     scale: number;
+    getInjectionDiv?(): HTMLElement;
     getMetrics(): {viewLeft: number; viewTop: number};
 }
 export interface RenderedField {
@@ -216,6 +219,7 @@ export interface ScriptTransferContext {
     document: Document;
     locale?: string;
     canUse?: () => boolean;
+    projectTransfer?: ProjectJSONTransfer;
     onError?: (error: unknown) => void;
 }
 export interface ActivationEvent {stopPropagation(): void}
