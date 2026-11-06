@@ -2,7 +2,7 @@ import {CLIPBOARD_MIME} from './clipboard.js';
 import {FORMAT, MAX_BYTES} from './format.js';
 
 export interface ProjectJSONTransfer {
-    copy(json: string, text: string): Promise<void>;
+    copy(json: string | Promise<string>, text: string): Promise<void>;
     read(): Promise<string | null>;
     drag(data: DataTransfer, json: string): void;
     accepts(data: DataTransfer): boolean;
@@ -10,10 +10,10 @@ export interface ProjectJSONTransfer {
 }
 
 /** Desktop transfer uses the browser's OS clipboard and drag data, with no process-local cache. */
-export function createProjectJSONTransfer(host: Window & typeof globalThis, kind: 'script' | 'yaml'): ProjectJSONTransfer {
-    const clipboardType = kind === 'script' ? CLIPBOARD_MIME : 'web application/x.turbowarp.yaml+json';
+export function createProjectJSONTransfer(host: Window & typeof globalThis, kind: 'script' | 'yaml' | 'costume' | 'sound'): ProjectJSONTransfer {
+    const clipboardType = kind === 'script' ? CLIPBOARD_MIME : `web application/x.turbowarp.${kind}+json`;
     const dragType = clipboardType.slice(4);
-    const format = kind === 'script' ? FORMAT : 'turbowarp-yaml';
+    const format = kind === 'script' ? FORMAT : kind === 'yaml' ? 'turbowarp-yaml' : 'turbowarp-asset';
     const bounded = (json: string) => {
         if (json.length > MAX_BYTES || new TextEncoder().encode(json).length > MAX_BYTES) {
             throw new Error('Project transfer is too large');
@@ -24,13 +24,15 @@ export function createProjectJSONTransfer(host: Window & typeof globalThis, kind
         const json = data.getData('text/plain');
         if (!json.trimStart().startsWith('{') || json.length > MAX_BYTES) return null;
         try {
-            return JSON.parse(json)?.format === format ? bounded(json) : null;
+            const envelope = JSON.parse(json);
+            return envelope?.format === format && (format !== 'turbowarp-asset' || envelope.kind === kind) ? bounded(json) : null;
         } catch { return null; }
     };
     return {
         async copy(json, text) {
             await host.navigator.clipboard.write([new host.ClipboardItem({
-                [clipboardType]: new host.Blob([bounded(json)], {type: dragType}),
+                [clipboardType]: typeof json === 'string' ? new host.Blob([bounded(json)], {type: dragType}) :
+                    json.then(value => new host.Blob([bounded(value)], {type: dragType})),
                 'text/plain': new host.Blob([text], {type: 'text/plain'})
             })]);
         },

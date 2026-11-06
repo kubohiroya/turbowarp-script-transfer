@@ -193,3 +193,5 @@ export function finalizeTransferMenu<T extends {text: string; _twPlusTransfer?: 
     const labels = new Set(items.filter(item => item._twPlusTransfer).map(item => item.text));
     return items.filter(item => item._twPlusTransfer || !labels.has(item.text));
 }
+
+export {createAssetTransferPanel, type ProjectAssetTransferPort} from './asset-transfer.js';
