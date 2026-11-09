@@ -17,6 +17,9 @@
     "README.md",
     "README.ja.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kubohiroya/turbowarp-script-transfer.git"

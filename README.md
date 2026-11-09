@@ -72,3 +72,11 @@ npm test
 `npm test` runs the clipboard and extension-dependency tests without external dependencies. Real VM, GUI, and asset-decoding checks live in the Editor repository's `test/script-transfer` and `script-transfer.spec.cts` suites.
 
 To roll back, remove `twPlusScriptTransfer=1` from the startup URL and reload. Without the integration hooks, the GUI retains its original behavior. Projects containing imported content remain ordinary SB3 files.
+
+## Release
+
+`.github/workflows/release.yml` publishes to npm. Push a `v<version>` tag that names the
+`package.json` version on a `main` commit: the workflow runs the tests, packs the archive, attaches it
+to the GitHub Release, publishes it to npm and points `latest` and `next` at it. It authenticates with
+npm Trusted Publishing (OIDC), not a token, and publishes with provenance. The npm settings name this
+workflow file, so rename both together.

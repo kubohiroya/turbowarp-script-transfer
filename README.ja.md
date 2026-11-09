@@ -72,3 +72,11 @@ npm test
 `npm test` は依存不要のクリップボード・拡張依存テストです。実VM・GUI・アセットデコードの検証はEditorリポジトリの `test/script-transfer` と `script-transfer.spec.cts` で行います。
 
 切り戻しは起動URLの `twPlusScriptTransfer=1` を外して再読込します。口を渡さなければGUIは元の動作を保ちます。保存済みプロジェクトは通常のSB3です。
+
+## 公開
+
+npm への公開は `.github/workflows/release.yml` が行う。`package.json` の版と同じ `v<版>` のタグを
+`main` のコミットに push すると、テストを通したうえで npm に入れるアーカイブを作り、GitHub Release に
+添付してから npm に公開し、`latest` と `next` をその版に向ける。認証はトークンではなく npm の
+Trusted Publisher（OIDC）で、provenance を付けて公開する。npm 側の設定にはこのワークフローの
+ファイル名をそのまま登録するため、改名するときは npm の設定も合わせる。
