@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import type {ClipboardHost, RenderedBlock, ScriptFile} from './types.js';
 import {parseScript, validateScript} from './format.js';
 export const CLIPBOARD_MIME = 'web application/x.turbowarp.blocks3+json';

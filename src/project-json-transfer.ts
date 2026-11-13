@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import {CLIPBOARD_MIME} from './clipboard.js';
 import {FORMAT, MAX_BYTES} from './format.js';
 

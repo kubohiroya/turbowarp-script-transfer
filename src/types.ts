@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import type {ProjectJSONTransfer} from './project-json-transfer.js';
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | {[key: string]: JSONValue};

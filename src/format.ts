@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import type {BlockField, JSONValue, BlockImportReceipt, ReceiptImportOptions, ScriptFile, ScriptImportOptions, TargetPort, VariableType, VMBlock, VMPort, VMVariable} from './types.js';
 import {extensionDependencies} from './extensions.js';
 import {queueTransfer} from './queue.js';

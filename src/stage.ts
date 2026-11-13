@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import type {StageFile, StageImportOptions, TargetPort, VariableDescriptor, VMAsset, VMPort} from './types.js';
 import {extensionDependencies} from './extensions.js';
 import {queueTransfer} from './queue.js';

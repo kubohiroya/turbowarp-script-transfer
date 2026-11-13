@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import {exportScript, parseScript} from './format.js';
 import type {ProjectJSONTransfer} from './project-json-transfer.js';
 import type {RenderedBlock, ScriptFile, ScriptTransferContext, TargetPort} from './types.js';

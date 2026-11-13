@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import type {VMBlock, VMPort} from './types.js';
 const core = new Set(['argument', 'colour', 'control', 'data', 'event', 'looks', 'math', 'motion',
     'operator', 'procedures', 'sensing', 'sound', 'text']);

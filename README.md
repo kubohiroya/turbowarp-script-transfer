@@ -80,3 +80,7 @@ To roll back, remove `twPlusScriptTransfer=1` from the startup URL and reload. W
 to the GitHub Release, publishes it to npm and points `latest` and `next` at it. It authenticates with
 npm Trusted Publishing (OIDC), not a token, and publishes with provenance. The npm settings name this
 workflow file, so rename both together.
+
+## License
+
+This package is licensed under the [Mozilla Public License 2.0](LICENSE).

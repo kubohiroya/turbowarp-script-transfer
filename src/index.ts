@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import type {
     BrowserHost, ContextMenuMethod, MenuItem, RenderedBlock, ScratchBlocksPort,
     ScriptTransferContext, StageMenus, StageTransferContext, WorkspacePort

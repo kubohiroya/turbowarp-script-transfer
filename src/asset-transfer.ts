@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 import {createProjectJSONTransfer} from './project-json-transfer.js';
 import type {TargetPort, VMAsset, VMPort} from './types.js';
 

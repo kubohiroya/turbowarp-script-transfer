@@ -80,3 +80,7 @@ npm への公開は `.github/workflows/release.yml` が行う。`package.json` �
 添付してから npm に公開し、`latest` と `next` をその版に向ける。認証はトークンではなく npm の
 Trusted Publisher（OIDC）で、provenance を付けて公開する。npm 側の設定にはこのワークフローの
 ファイル名をそのまま登録するため、改名するときは npm の設定も合わせる。
+
+## ライセンス
+
+このパッケージには [Mozilla Public License 2.0](LICENSE) が適用されます。

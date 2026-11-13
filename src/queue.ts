@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+
 const pending = new WeakMap<object, Promise<unknown>>();
 
 // All entry points share one queue per VM, so awaiting extension approval cannot race two pastes
