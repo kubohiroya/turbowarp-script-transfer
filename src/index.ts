@@ -9,15 +9,18 @@ import {exportScript, importScript, importScriptWithReceipt, parseScript, MAX_BY
 import {createScriptClipboard, scratchblocksText} from './clipboard.js';
 import {installScriptDrag} from './script-drag.js';
 import {exportStage, importStage} from './stage.js';
+import {markCoreMenuItems, orderBlockMenu} from './menu.js';
 export * from './format.js';
 export * from './clipboard.js';
 export * from './stage.js';
 export * from './project-json-transfer.js';
 
 const labels = (locale = 'en') => String(locale).startsWith('ja') ? {
-    export: 'スクリプトを書き出し', import: 'スクリプトを読み込み', copy: 'コピー', paste: '貼り付け',
+    export: 'かたまりをファイルに保存…', import: 'ファイルから読み込み…', copy: 'かたまりごとコピー', paste: '貼り付け',
+    cutBlock: 'このブロックだけ切り取り', copyBlock: 'このブロックだけコピー', copyBelow: 'ここから下をコピー',
     exportStage: 'ステージを書き出し', importStage: 'ステージを読み込み（追加）', error: '読み込み・書き出しに失敗しました'
-} : {export: 'Export Script', import: 'Import Script', copy: 'Copy', paste: 'Paste',
+} : {export: 'Save Stack to File…', import: 'Load from File…', copy: 'Copy Whole Stack', paste: 'Paste',
+    cutBlock: 'Cut This Block Only', copyBlock: 'Copy This Block Only', copyBelow: 'Copy From Here Down',
     exportStage: 'Export Stage', importStage: 'Import Stage (add)', error: 'Transfer failed'};
 
 function download (host: BrowserHost, data: Blob | string, filename: string, type?: string): void {
@@ -124,13 +127,17 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
         if (!canUse()) return;
         if (isBlock) {
             if (block.isInFlyout || block.isShadow() || !vm.editingTarget.blocks.getBlock(block.id)) return;
-            items.push({text: text.export, enabled: true, callback: run(() => {
-                const data = exportScript(vm, vm.editingTarget, block.id);
-                download(host, JSON.stringify(data, null, 2), 'script.blocks3', 'application/json');
-            })});
-            items.push({text: text.copy, enabled: true, callback: run(() => copy(block))});
+            markCoreMenuItems(items, ScratchBlocks.Msg);
+            const {cutBlock, copyBlock, copyBelow} = text;
+            items.push({text: text.export, enabled: true, _twPlusMenuRole: 'save', twPlusMenuIcon: 'export',
+                callback: run(() => {
+                    const data = exportScript(vm, vm.editingTarget, block.id);
+                    download(host, JSON.stringify(data, null, 2), 'script.blocks3', 'application/json');
+                })});
+            items.push({text: text.copy, enabled: true, _twPlusMenuRole: 'copyStack', twPlusMenuIcon: 'copy',
+                _twPlusMenuLabels: {cutBlock, copyBlock, copyBelow}, callback: run(() => copy(block))});
         } else {
-            items.push({text: text.import, enabled: true, callback: () => {
+            items.push({text: text.import, enabled: true, twPlusMenuIcon: 'import', callback: () => {
                 const target = vm.editingTarget;
                 pick(host, '.blocks3', async file => {
                     if (file.size > MAX_BYTES) throw new Error('Script is too large');
@@ -138,7 +145,7 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
                     if (!disposed && target === vm.editingTarget && canUse()) await importScript(vm, target, script, {position: position()});
                 }, report);
             }});
-            items.push({_twPlusTransfer: true, text: text.paste, enabled: true, callback: run(paste)});
+            items.push({_twPlusTransfer: true, text: text.paste, enabled: true, twPlusMenuIcon: 'paste', callback: run(paste)});
         }
     }});
     const onKey = (event: KeyboardEvent) => {
@@ -190,10 +197,12 @@ export function stageTransferMenu ({vm, locale, document, deserializeBlocks, Zip
 
 
 // The GUI calls this after its addons have offered their menu items. Keep the host's script
-// paste when an addon also offers the window-local clipboard under the same label.
-export function finalizeTransferMenu<T extends {text: string; _twPlusTransfer?: boolean}> (items: T[]): T[] {
+// paste when an addon also offers the window-local clipboard under the same label, and put a
+// block menu in order. `addonMessages` are the GUI's addon strings, to know editor-devtools' items.
+export function finalizeTransferMenu<T extends MenuItem> (items: T[],
+    {addonMessages}: {addonMessages?: Record<string, unknown>} = {}): T[] {
     const labels = new Set(items.filter(item => item._twPlusTransfer).map(item => item.text));
-    return items.filter(item => item._twPlusTransfer || !labels.has(item.text));
+    return orderBlockMenu(items.filter(item => item._twPlusTransfer || !labels.has(item.text)), addonMessages);
 }
 
 export {createAssetTransferPanel, type ProjectAssetTransferPort} from './asset-transfer.js';

@@ -10,7 +10,7 @@
 
 - `attachScriptTransfer({vm, ScratchBlocks, workspace, document, locale, canUse, onError})`: スクリプト・ワークスペースの右クリックメニューと Ctrl/Cmd+C・V を接続します。戻り値の `dispose()` で接続を解除します。
 - `stageTransferMenu({vm, document, locale, Zip, deserializeBlocks, onError})`: ステージの `contextItems` と背景選択の `backdropItems` を返します。
-- `finalizeTransferMenu(items)`: GUIのアドオンがメニューを作った後、ホストの貼り付けと同名の項目を統一します。
+- `finalizeTransferMenu(items, {addonMessages})`: GUIのアドオンがメニューを作った後に呼びます。ホストの貼り付けと同名の項目を統一し、ブロックのメニューを「編集・コメント → 切り取り → コピー（複製・このブロックだけ・ここから下・かたまりごと）→ ファイルに保存 → スペースを確保 → ほかのアドオンの項目 → 削除」の順に並べ、グループの間に仕切りを入れます。`addonMessages` はGUIのアドオンの文言で、editor-devtools のコピー・切り取りの項目を見分け、範囲が分かる名前に変えるのに使います。項目にはホストがアイコンを描くための `twPlusMenuIcon` を付けます。
 - `exportScript(vm, target, rootId)` / `importScript(vm, target, payload, options)` / `parseScript(text)`: 共通の書式・依存収集・読み込みです。
 - `exportStage(vm, stage, {Zip})` / `importStage(vm, buffer, {Zip, deserializeBlocks})`: ステージのZIPを扱います。
 
