@@ -10,7 +10,8 @@ const blockly = {ADD_COMMENT: 'コメントを追加', DELETE_BLOCK: 'ブロッ�
 const addonMessages = {'editor-devtools/make-space': 'スペースを確保', 'editor-devtools/copy-all': 'すべてコピー',
     'editor-devtools/copy-block': 'ブロックをコピー', 'editor-devtools/cut-block': 'ブロックを切り取り'};
 const item = (text, extra = {}) => ({text, enabled: true, callback () {}, ...extra});
-const labels = {cutBlock: 'このブロックだけ切り取り', copyBlock: 'このブロックだけコピー', copyBelow: 'ここから下をコピー'};
+const labels = {cutBlock: 'このブロックだけ切り取り', copyBlock: 'このブロックだけコピー', copyBelow: 'ここから下をコピー',
+    space: 'このかたまりの下を空けて整列'};
 // The order a block menu reaches the GUI in: Blockly, this package, then editor-devtools.
 const blockMenu = core => {
     const items = core.map(text => item(text));
@@ -29,10 +30,11 @@ test('a definition block menu goes edit, cut, copy, save, arrange, delete with d
         '--- このブロックだけ切り取り',
         '--- このブロックだけコピー', 'ここから下をコピー', 'かたまりごとコピー',
         '--- かたまりをファイルに保存…',
-        '--- スペースを確保',
+        '--- このかたまりの下を空けて整列',
         '--- ブロックを削除'
     ]);
     assert.deepEqual(items.slice(2, 5).map(entry => entry.twPlusMenuIcon), ['cut', 'copy', 'copy']);
+    assert.equal(items.at(-2).twPlusMenuIcon, 'space');
 });
 
 test('duplicate joins the copies, and the count in a delete label still finds it', () => {

@@ -18,9 +18,11 @@ export * from './project-json-transfer.js';
 const labels = (locale = 'en') => String(locale).startsWith('ja') ? {
     export: 'かたまりをファイルに保存…', import: 'ファイルから読み込み…', copy: 'かたまりごとコピー', paste: '貼り付け',
     cutBlock: 'このブロックだけ切り取り', copyBlock: 'このブロックだけコピー', copyBelow: 'ここから下をコピー',
+    space: 'このかたまりの下を空けて整列',
     exportStage: 'ステージを書き出し', importStage: 'ステージを読み込み（追加）', error: '読み込み・書き出しに失敗しました'
 } : {export: 'Save Stack to File…', import: 'Load from File…', copy: 'Copy Whole Stack', paste: 'Paste',
     cutBlock: 'Cut This Block Only', copyBlock: 'Copy This Block Only', copyBelow: 'Copy From Here Down',
+    space: 'Tidy Up, Leaving Room Below This Stack',
     exportStage: 'Export Stage', importStage: 'Import Stage (add)', error: 'Transfer failed'};
 
 function download (host: BrowserHost, data: Blob | string, filename: string, type?: string): void {
@@ -128,14 +130,14 @@ export function attachScriptTransfer ({vm, workspace, ScratchBlocks, document, l
         if (isBlock) {
             if (block.isInFlyout || block.isShadow() || !vm.editingTarget.blocks.getBlock(block.id)) return;
             markCoreMenuItems(items, ScratchBlocks.Msg);
-            const {cutBlock, copyBlock, copyBelow} = text;
+            const {cutBlock, copyBlock, copyBelow, space} = text;
             items.push({text: text.export, enabled: true, _twPlusMenuRole: 'save', twPlusMenuIcon: 'export',
                 callback: run(() => {
                     const data = exportScript(vm, vm.editingTarget, block.id);
                     download(host, JSON.stringify(data, null, 2), 'script.blocks3', 'application/json');
                 })});
             items.push({text: text.copy, enabled: true, _twPlusMenuRole: 'copyStack', twPlusMenuIcon: 'copy',
-                _twPlusMenuLabels: {cutBlock, copyBlock, copyBelow}, callback: run(() => copy(block))});
+                _twPlusMenuLabels: {cutBlock, copyBlock, copyBelow, space}, callback: run(() => copy(block))});
         } else {
             items.push({text: text.import, enabled: true, twPlusMenuIcon: 'import', callback: () => {
                 const target = vm.editingTarget;

@@ -2,7 +2,7 @@
 
 import type {MenuItem} from './types.js';
 
-export type MenuLocaleLabels = Record<'cutBlock' | 'copyBlock' | 'copyBelow', string>;
+export type MenuLocaleLabels = Record<'cutBlock' | 'copyBlock' | 'copyBelow' | 'space', string>;
 type Role = 'edit' | 'comment' | 'cutBlock' | 'duplicate' | 'copyBlock' | 'copyBelow' | 'copyStack' |
     'save' | 'space' | 'delete';
 
@@ -24,7 +24,7 @@ const devtoolsMessages: [string, Role][] = [
     ['editor-devtools/make-space', 'space'], ['editor-devtools/copy-all', 'copyBelow'],
     ['editor-devtools/copy-block', 'copyBlock'], ['editor-devtools/cut-block', 'cutBlock']
 ];
-const icons: Partial<Record<Role, string>> = {cutBlock: 'cut', copyBlock: 'copy', copyBelow: 'copy'};
+const icons: Partial<Record<Role, string>> = {cutBlock: 'cut', copyBlock: 'copy', copyBelow: 'copy', space: 'space'};
 
 const matches = (text: string, message: unknown) => {
     if (typeof message !== 'string') return false;
@@ -45,7 +45,7 @@ export function markCoreMenuItems (items: MenuItem[], messages: Record<string, u
 
 /**
  * Put a block menu in the order cut, copy, save, arrange, delete, with a divider between groups,
- * and name the editor-devtools copy and cut items by the range they take. A menu without this
+ * and name the editor-devtools items by what they take or leave. A menu without this
  * package's block items (a workspace or palette menu) is left as it is.
  */
 export function orderBlockMenu<T extends MenuItem> (items: T[], addonMessages: Record<string, unknown> = {}): T[] {
