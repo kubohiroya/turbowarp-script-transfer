@@ -10,7 +10,7 @@ Specifications and task tracking: [Editor #93](https://github.com/kubohiroya/tur
 
 - `attachScriptTransfer({vm, ScratchBlocks, workspace, document, locale, canUse, onError})`: attaches script/workspace context menus and Ctrl/Cmd+C/V. Call the returned `dispose()` to detach them.
 - `stageTransferMenu({vm, document, locale, Zip, deserializeBlocks, onError})`: returns stage `contextItems` and backdrop-picker `backdropItems`.
-- `finalizeTransferMenu(items)`: resolves duplicate paste commands after GUI addons have added their menu items.
+- `finalizeTransferMenu(items, {addonMessages})`: call after GUI addons have added their menu items. It resolves duplicate paste commands and orders a block menu as edit/comment, cut, copy (duplicate, this block only, from here down, whole stack), save to file, tidy up leaving room below this stack (editor-devtools' make space), other addon items, delete, with a divider between groups. `addonMessages` are the GUI's addon strings, used to find editor-devtools' copy, cut and make-space items and name them by what they do. Items carry `twPlusMenuIcon` for the host's icons.
 - `exportScript(vm, target, rootId)` / `importScript(vm, target, payload, options)` / `parseScript(text)`: shared format, dependency collection, and import operations.
 - `exportStage(vm, stage, {Zip})` / `importStage(vm, buffer, {Zip, deserializeBlocks})`: stage ZIP operations.
 

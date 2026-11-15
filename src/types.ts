@@ -188,6 +188,12 @@ export interface MenuItem {
     enabled: boolean;
     callback(): void;
     _twPlusTransfer?: boolean;
+    /** Blockly draws a divider above an item that has this. */
+    separator?: boolean;
+    /** The icon the host draws beside the label. */
+    twPlusMenuIcon?: string;
+    _twPlusMenuRole?: string;
+    _twPlusMenuLabels?: Record<string, string>;
     [key: string]: unknown;
 }
 export type ContextMenuMethod = (this: RenderedBlock | WorkspacePort, ...args: unknown[]) => unknown;
@@ -195,6 +201,8 @@ export interface ScratchBlocksPort {
     BlockSvg: {prototype: {showContextMenu_: ContextMenuMethod}};
     WorkspaceSvg: {prototype: {showContextMenu_: ContextMenuMethod}};
     ContextMenu: {show(event: Event, items: MenuItem[], rtl?: boolean): unknown};
+    /** Blockly's strings, to know its own menu items. */
+    Msg?: Record<string, unknown>;
     selected: RenderedBlock | null;
     getMainWorkspace(): WorkspacePort;
     onKeyDown_(event: KeyboardEvent): void;

@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-script-transfer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "license": "MPL-2.0",
   "exports": {
