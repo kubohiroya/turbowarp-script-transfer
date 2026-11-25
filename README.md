@@ -69,7 +69,13 @@ npm test
 
 ## Verification and rollback
 
-`npm test` runs the clipboard and extension-dependency tests without external dependencies. Real VM, GUI, and asset-decoding checks live in the Editor repository's `test/script-transfer` and `script-transfer.spec.cts` suites.
+`npm test` runs the clipboard, menu, extension-dependency, and real-VM transfer tests. The 12 cases in `test/format.test.mjs` and `test/stage.test.mjs` come from [Editor #741](https://github.com/kubohiroya/turbowarp-plus-editor/issues/741). They cover recursive procedures, variable scopes, extension permission refusal, concurrent imports, committed block IDs, stage archives, and rollback after asset failures. They run in Node.js without a GUI checkout, Editor build, browser, or OS input.
+
+The test-only VM is fixed to `e623546e0e173d70e0314d06d8a17bf84c72afeb`, matching Editor's `site/source.json` and the dependency of its pinned GUI `b2e75a129546db48e6563f72c80a3d3d46d86fb5`. Storage and ZIP are also development dependencies; the published library still receives these ports from its host. Asset decoding is stubbed in the stage tests. The real GUI, rendering, and asset-decoding checks remain in Editor's `script-transfer.spec.cts` suite.
+
+The existing CI runs these cases through `npm test`. Remove the original Editor tests only after the migration PR is merged and its CI succeeds. To undo the test migration, revert the added tests and development dependencies; the production implementation, package version, and transfer formats are unchanged.
+
+The two migrated test files retain their original GPL-3.0-or-later license, with its text in `test/LICENSE.GPL-3.0`. They are not included in the npm archive. The library remains MPL-2.0.
 
 To roll back, remove `twPlusScriptTransfer=1` from the startup URL and reload. Without the integration hooks, the GUI retains its original behavior. Projects containing imported content remain ordinary SB3 files.
 
