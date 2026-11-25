@@ -69,7 +69,13 @@ npm test
 
 ## 検証と切り戻し
 
-`npm test` は依存不要のクリップボード・拡張依存テストです。実VM・GUI・アセットデコードの検証はEditorリポジトリの `test/script-transfer` と `script-transfer.spec.cts` で行います。
+`npm test` はクリップボード・メニュー・拡張依存と、実 VM での転送を検証します。`test/format.test.mjs` と `test/stage.test.mjs` の12件は [Editor #741](https://github.com/kubohiroya/turbowarp-plus-editor/issues/741) の移管対象です。再帰的なブロック定義、変数のスコープ、拡張の許可拒否、同時取り込み、確定したブロック ID、ステージの ZIP、素材の取り込み失敗時の巻戻しを確認します。Node.js で実行し、GUI checkout・Editor ビルド・ブラウザー・OS 入力は必要ありません。
+
+テスト専用 VM は `e623546e0e173d70e0314d06d8a17bf84c72afeb` に固定し、Editor の `site/source.json` と固定 GUI `b2e75a129546db48e6563f72c80a3d3d46d86fb5` の依存に合わせます。storage と ZIP も開発依存だけに追加し、配布ライブラリでは従来どおりホストから受け取ります。ステージのテストでは素材のデコードを代役に置き換えます。実 GUI・描画・素材デコードの検証は Editor の `script-transfer.spec.cts` に残します。
+
+既存 CI の `npm test` で移管対象も実行します。移管 PR のマージと CI 成功を確認してから、Editor の元テストを削除します。移管を取り消す場合は、追加したテストと開発依存を revert します。製品実装、パッケージの版、転送形式は変更しません。
+
+移管した2つのテストファイルは、移管元の GPL-3.0-or-later を保持し、ライセンス本文を `test/LICENSE.GPL-3.0` に置きます。npm アーカイブには含めません。ライブラリ本体は MPL-2.0 のままです。
 
 切り戻しは起動URLの `twPlusScriptTransfer=1` を外して再読込します。口を渡さなければGUIは元の動作を保ちます。保存済みプロジェクトは通常のSB3です。
 
