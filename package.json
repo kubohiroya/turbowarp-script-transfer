@@ -33,7 +33,7 @@
   "types": "./dist/index.d.ts",
   "devDependencies": {
     "@turbowarp/jszip": "3.12.0",
-    "@turbowarp/scratch-storage": "2.0.0",
+    "@turbowarp/scratch-storage": "2.2.0",
     "scratch-vm": "github:kubohiroya/scratch-vm#e623546e0e173d70e0314d06d8a17bf84c72afeb",
     "typescript": "6.0.3"
   }
